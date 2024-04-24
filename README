@@ -5,7 +5,7 @@ Usage is something like:
      script. This will automatically trim silence from before/after the
      knock.
 
-       ./rec knock.wav
+       ./rec knock.mp3
 
   2. Check for similar knocks by feeding a live recording into "listen",
      which will recognize knock sequences (any knock after relative
@@ -13,7 +13,7 @@ Usage is something like:
      scores which can then be acted upon. For example:
 
        sox -q -t alsa hw:1 -t wav - |
-       ./listen knock.wav |
+       ./listen knock.mp3 |
        perl -lpe '
          BEGIN { $| = 1 }
          if (m{score = ([0-9.]+) / ([0-9.]+)}) {

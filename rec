@@ -3,5 +3,5 @@
 
 sox \
 	-t alsa hw:1 \
-	-t wav "$@" \
+	"$@" \
 	 trim 0 5 silence 1 0.1 1% reverse silence 1 0.1 1% reverse
