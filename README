@@ -1,0 +1,47 @@
+This is a tool for recognizing audio "secret knocks". It's quite hacky.
+Usage is something like:
+
+  1. Record a knock. You may need to tweak the alsa device in the "rec"
+     script. This will automatically trim silence from before/after the
+     knock.
+
+       ./rec knock.wav
+
+  2. Check for similar knocks by feeding a live recording into "listen",
+     which will recognize knock sequences (any knock after relative
+     silence, followed by an attempt to match the knock). It outputs
+     scores which can then be acted upon. For example:
+
+       sox -q -t alsa hw:1 -t wav - |
+       ./listen knock.wav |
+       perl -lpe '
+         if (m{score = ([0-9.]+) / ([0-9.]+)}) {
+           if (abs($1 - $2) < 1.0) {
+                do_something();
+           }
+         }
+       '
+
+The magic is in the "listen" program, which is rather janky. It
+breaks time into 2000-sample chunks (sox seems to default to 2 channels,
+32000Hz, so that's about 31ms). It computes the "energy" for a chunk by
+looking for noise; anything over a certain cutoff is counted as a knock.
+And then the knock sequence is stuffed into a poor attempt at a locality
+sensitive hash.
+
+I normalize the energy for each chunk to 0/1 based on whether it is
+above the cutoff. This avoids differences where the knocking is louder
+or softer. I also take groups of 4 chunks and average them. That
+provides some insensitivity to timing variance (so if your knock appears
+anywhere in the 120ms window, it counts as the same). It feels like this
+should be the same as just using 120ms chunks, but it doesn't quite seem
+to be.
+
+And then the result of each window is rolled into the hash, multiplying
+the previous value by 1.1 after each window to give some time-locality.
+This feels like it must be wrong, too, though. The early part of the
+knock is represented in the more-significant digits, so getting the end
+wrong makes a much smaller difference.
+
+So in practice I suspect this is not very good at all, but it is enough
+to at least differentiate some really basic cases.
