@@ -83,6 +83,15 @@ int main(int argc, const char **argv)
 
 		printf("score = %f / %f\n", attempt, knock);
 		fflush(stdout);
+
+		/*
+		 * throw away a few chunks after an attempt
+		 * so that a too-long attempt doesn't end up
+		 * triggering another score
+		 */
+		for (int i = 0; i < 8; i++)
+			sox_read(in, buf, CHUNK_SIZE);
+
 	}
 	sox_close(in);
 
