@@ -78,9 +78,11 @@ int main(int argc, const char **argv)
 			continue;
 
 		printf("got knock\n");
+		fflush(stdout);
 		attempt = hash_knock(in, buf, r, len);
 
 		printf("score = %f / %f\n", attempt, knock);
+		fflush(stdout);
 	}
 	sox_close(in);
 
