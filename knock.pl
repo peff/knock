@@ -4,7 +4,7 @@ use strict;
 use warnings qw(all FATAL);
 $| = 1;
 
-my $CUTOFF = 0.2;
+my $CUTOFF = 0.05;
 my @knock = map { $_ - $ARGV[0] } @ARGV;
 
 my @window;

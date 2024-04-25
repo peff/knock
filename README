@@ -61,7 +61,7 @@ There are a lot of heuristics and magic numbers in various programs:
 
   - the scoring heuristic in knock.pl is the sum of squares of the
     differences between each knock's time, with an arbitrary cutoff of
-    0.2 (which is not unit-less; we're ultimately comparing seconds).
+    0.05 (which is not unit-less; we're ultimately comparing seconds).
 
 These could probably use some tweaking, but it seems to work OK in
 practice for my setup.
