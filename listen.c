@@ -15,83 +15,45 @@ static double get_energy(sox_sample_t *buf, size_t len)
 	return ret;
 }
 
-static double hash_knock(sox_format_t *in, sox_sample_t *buf,
-			 size_t have, size_t len)
-{
-	double ret = 0;
-	double average = 0;
-	unsigned ctr = 0;
-
-	if (have) {
-		if (get_energy(buf, have) > ENERGY_CUT)
-			average += 1;
-		ctr++;
-	}
-
-	while (len > 0) {
-		size_t r = sox_read(in, buf, len < CHUNK_SIZE ? len : CHUNK_SIZE);
-		if (!r)
-			break;
-		len -= r;
-		if (get_energy(buf, r) > ENERGY_CUT)
-			average += 1;
-		if (++ctr >= 4) {
-			ret *= 1.1;
-			ret += average / 4;
-			ctr = 0;
-		}
-	}
-	return ret;
-}
-
-int main(int argc, const char **argv)
+int main(void)
 {
 	sox_sample_t buf[CHUNK_SIZE];
-	double knock;
-	size_t len;
 	sox_format_t *in;
+	int in_knock = 0;
+	double ofs = 0;
+	double last_knock = 0;
 
 	sox_format_init();
-
-	if (!*++argv) {
-		fprintf(stderr, "usage: knock <audiofile>\n");
-		return 1;
-	}
-	in = sox_open_read(*argv, NULL, NULL, NULL);
-	len = in->signal.length;
-	knock = hash_knock(in, buf, 0, len);
-	sox_close(in);
-	argv++;
 
 	in = sox_open_read("-", NULL, NULL, NULL);
 	while (1) {
 		size_t r;
 		double energy;
-		double attempt;
 
 		r = sox_read(in, buf, CHUNK_SIZE);
 		if (!r)
 			break;
 
 		energy = get_energy(buf, r);
-		if (energy < ENERGY_CUT)
-			continue;
+		if (energy > ENERGY_CUT) {
+			if (!in_knock) {
+				printf("%f\n", ofs);
+				last_knock = ofs;
+				in_knock = 1;
+			}
+		} else {
+			in_knock = 0;
+			if (last_knock && ofs - last_knock > 1.5) {
+				printf("--\n");
+				ofs = 0;
+				last_knock = 0;
+			}
+		}
 
-		printf("got knock\n");
 		fflush(stdout);
-		attempt = hash_knock(in, buf, r, len);
-
-		printf("score = %f / %f\n", attempt, knock);
-		fflush(stdout);
-
-		/*
-		 * throw away a few chunks after an attempt
-		 * so that a too-long attempt doesn't end up
-		 * triggering another score
-		 */
-		for (int i = 0; i < 8; i++)
-			sox_read(in, buf, CHUNK_SIZE);
-
+		ofs += (double)CHUNK_SIZE /
+			(double)in->signal.rate /
+			(double)in->signal.channels;
 	}
 	sox_close(in);
 

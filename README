@@ -1,50 +1,67 @@
-This is a tool for recognizing audio "secret knocks". It's quite hacky.
-Usage is something like:
+This is a tool for recognizing audio "secret knocks". Usage is something
+like:
 
-  1. Record a knock. You may need to tweak the alsa device in the "rec"
-     script. This will automatically trim silence from before/after the
-     knock.
+  1. Record a knock. You can use any program you like, or even pipe
+     directly into "listen" in step 2, though keeping a copy is handy if
+     you want to be able to teach anybody your knock. The "trim" here
+     just limits the recording length; you don't need to trim silence
+     yourself.
 
-       ./rec knock.mp3
+       $ rec knock.mp3 trim 0 5
+
+  2. Compute the knock times using the "listen" tool. Weirdly sox
+     doesn't seem to handle mp3 over stdin, hence the conversion here.
+
+       $ sox knock.mp3 -t wav - | ./listen
+       0.812500
+       1.593750
+       2.343750
+       2.718750
+       --
 
   2. Check for similar knocks by feeding a live recording into "listen",
-     which will recognize knock sequences (any knock after relative
-     silence, followed by an attempt to match the knock). It outputs
-     scores which can then be acted upon. For example:
+     which finds knocks, and then check for matches using knock.pl. Note
+     that even though our desired knock doesn't start at t=0, all times
+     will be normalized against the first knock (so the first knock of
+     an attempt always starts at the same time as the first knock of the
+     match).
 
-       sox -q -t alsa hw:1 -t wav - |
-       ./listen knock.mp3 |
-       perl -lpe '
-         BEGIN { $| = 1 }
-         if (m{score = ([0-9.]+) / ([0-9.]+)}) {
-           if (abs($1 - $2) < 1.5) {
-                system("play -q bell.mp3");
-           } else {
-                system("play -q buzzer.mp3");
-           }
-         }
-       '
+     A match is found if we saw the same number of knocks (followed by
+     at least 1.5s of silence to indicate the end of the sequence), and
+     if the timing of the knocks is close-ish (based on some arbitrary
+     scoring heuristic) to the desired sequence.
 
-The magic is in the "listen" program, which is rather janky. It
-breaks time into 2000-sample chunks (sox seems to default to 2 channels,
-32000Hz, so that's about 31ms). It computes the "energy" for a chunk by
-looking for noise; anything over a certain cutoff is counted as a knock.
-And then the knock sequence is stuffed into a poor attempt at a locality
-sensitive hash.
+       rec -q -t wav - |
+       ./listen |
+       perl knock.pl 0.8125 1.59375 2.34375 2.71875 |
+       while read r; do
+         case "$r" in
+         ok)
+                play -q bell.mp3
+                ;;
+         *)
+                play -q buzzer.mp3
+                ;;
+         esac
+       done
 
-I normalize the energy for each chunk to 0/1 based on whether it is
-above the cutoff. This avoids differences where the knocking is louder
-or softer. I also take groups of 4 chunks and average them. That
-provides some insensitivity to timing variance (so if your knock appears
-anywhere in the 120ms window, it counts as the same). It feels like this
-should be the same as just using 120ms chunks, but it doesn't quite seem
-to be.
+There are a lot of heuristics and magic numbers in various programs:
 
-And then the result of each window is rolled into the hash, multiplying
-the previous value by 1.1 after each window to give some time-locality.
-This feels like it must be wrong, too, though. The early part of the
-knock is represented in the more-significant digits, so getting the end
-wrong makes a much smaller difference.
+  - the "listen" program breaks time into 2000-sample chunks (sox seems
+    to default to 2 channels, 32000Hz, so that's about 31ms). It
+    computes the "energy" for a chunk by looking for noise; anything
+    over a certain cutoff is counted as a knock. That cutoff is
+    hard-coded and just a guess (too low and you get noise counting as a
+    knock; too high and you miss a knock).
 
-So in practice I suspect this is not very good at all, but it is enough
-to at least differentiate some really basic cases.
+  - the amount of silence to end a sequence is hard-coded to 1.5s.
+    Shortening this makes the program more responsive (since it has to
+    wait to decide the sequence is done) at the risk of cutting off
+    knocks that come after long pauses.
+
+  - the scoring heuristic in knock.pl is the sum of squares of the
+    differences between each knock's time, with an arbitrary cutoff of
+    0.2 (which is not unit-less; we're ultimately comparing seconds).
+
+These could probably use some tweaking, but it seems to work OK in
+practice for my setup.
